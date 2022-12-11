@@ -1,5 +1,6 @@
 import random
 import time
+from builtins import print
 from typing import List, Callable, Tuple
 
 import matplotlib.pyplot as plt
@@ -47,7 +48,7 @@ class Net(Network):
 
 
 class Generative:
-    def __init__(self, gen_count: Int, gen_size: Int, net: Network, fitness_function: Callable):
+    def __init__(self, gen_count: Int, gen_size: Int, net: Network, fitness_function: Callable, selection, fill, mutation_rate):
         self.gen_count: Int = gen_count
         self.gen_size: Int = gen_size
 
@@ -55,8 +56,12 @@ class Generative:
         self.act: Tuple[Callable] = net.activations
         self.fitness_function: Callable = fitness_function
 
+        self.selection = selection
+        self.fill = fill
+        self.mutation_rate = mutation_rate
+
         self.current_gen: List[Network]
-        self.current_gen = [Net(shape=self.shape, activations=self.act) for _ in range(self.gen_size * 100)]
+        self.current_gen = [Net(shape=self.shape, activations=self.act) for _ in range(self.gen_size * 10)]
 
     def start(self):
         """ starts the training """
@@ -64,18 +69,18 @@ class Generative:
         for gen in range(self.gen_count):
             self.fitness_function(self)
             errors.append(self.current_gen[0].fitness)
-            self.top_select(selection)
+            self.top_select(self.selection)
             print(gen, [x.fitness for x in self.current_gen])
-            self.fill_up(fill)
-        return errors[-1]
+            self.fill_up(self.fill)
+        return errors
 
     def _animate(self, frames):
         if frames == self.gen_count - 1:
             return
         self.fitness_function(self)
-        self.tournament_select(selection)
+        self.top_select(self.selection)
         print(frames, [x.fitness for x in self.current_gen])
-        self.fill_up(fill)
+        self.fill_up(self.fill)
         best = self.get_best_network()
 
         self.im.set_array(best.get_plot_data())
@@ -93,11 +98,9 @@ class Generative:
         plt.subplots_adjust(right=0.9)
         self.im = self.ax1.imshow(np.random.random((200, 200)), cmap="magma", extent=[0, 1, 0, 1])
         self.im.set_clim(0, 1)
-        self.plt_error = []
         self.ax1.set_xticks(np.arange(0, 3, 1))
         self.ax1.set_yticks(np.arange(0, 3, 1))
         self.ax1.set_title('Network Map')
-
         self.ax2.set_ylabel("Network Loss")
         self.ax2.set_xlabel(f"Generations")
         # self.ax2.set_ylim(top=0.5)
@@ -113,7 +116,6 @@ class Generative:
 
         ani.save(f'{int(time.time())}_{seed}_{self.shape}_{self.act}.gif', writer='ImageMagickWriter', fps=15)
         plt.show()
-        print("hahahahah")
 
     def plot_data_points(self):
         examples = get_circle_examples(300)
@@ -139,7 +141,7 @@ class Generative:
         """ fills up the current generation with new crossed over Networks"""
         for i in range(self.gen_size - len(self.current_gen)):
             new = crossover(*random.sample(self.current_gen, k=2), count=count)
-            new.mutate(mutation_rate)
+            new.mutate(self.mutation_rate)
             self.current_gen.append(new)
 
     def get_best_network(self):
@@ -219,17 +221,20 @@ def calculate_error(net: Net) -> Float:
     return np.average(np.linalg.norm(output - train_r, axis=-1))
 
 
-training_set = get_circle_examples(500)
+training_set = get_circle_examples(1000)
 
 
 def main():
     np.set_printoptions(suppress=True)
-    n = Net(shape=(2, 24, 24, 24, 12, 12, 2), activations=(None, 0, 2, 2, 2, 2, 1))
+    # n = Net(shape=(2, 24, 24, 24, 12, 12, 2), activations=(None, 0, 2, 2, 2, 2, 1))
+    n = Net(shape=(2, 24, 24, 24, 12, 12, 2), activations=(None, 2, 2, 2, 2, 2, 1))
 
-    gen = Generative(200, 100, net=n, fitness_function=fitness)
+    gen = Generative(200, 50, net=n, fitness_function=fitness, selection=3, fill=1, mutation_rate=0.0005)
+
+    gen.start()
+
     n = gen.get_best_network()
     n.visualize_network()
-    # gen.animated_start()
 
 
     # import cProfile
@@ -243,7 +248,6 @@ def main():
 
 
 if __name__ == '__main__':
-    selection, fill, mutation_rate = 3, 1, 0.0005  # 3, 1, 0.001 # top_select
 
     seed = np.random.randint(0, 999_999)
     # seed = 715418
@@ -251,4 +255,4 @@ if __name__ == '__main__':
     random.seed(seed)
 
     err = main()
-    print(f'seed={seed}, {selection=}, {fill=}, {mutation_rate=}, {err=}')
+
